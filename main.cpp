@@ -13,11 +13,12 @@ struct Order{
 };
 
 Order get_order();
-int display_orders(const std::vector<Order>& orders);
+void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders);
+void display_orders(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders);
 
 int main(){
-    std::vector<Order> buy_orders;
-    std::vector<Order> sell_orders;
+    std::map<double, std::vector<Order>, std::greater<double>> buy_orders;
+    std::map<double, std::vector<Order>> sell_orders;
     int onum;
 
     while(true){
@@ -30,11 +31,10 @@ int main(){
 
     for(int i = 0; i<onum; i++){
         Order o = get_order();
-        (o.side == Side::BUY) ? buy_orders.push_back(o) : sell_orders.push_back(o);
+        add_order(o, buy_orders, sell_orders);
     }
 
-    display_orders(buy_orders);
-    display_orders(sell_orders);
+    display_orders(buy_orders, sell_orders);
 
     return 0;
 }
@@ -87,22 +87,57 @@ Order get_order(){
     return o;
 }
 
-void display_orders(const std::vector<Order>& orders){
-    if(orders.empty()){
+void display_orders(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders){
+    if(buy_orders.empty() && sell_orders.empty()){
         std::cout << "\nNo orders to display.\n";
         return;
     }
 
-    std::cout << "\n\t\t\t\tOrders    Details\n";
-    std::cout << std::left << std::setw(15) << "Order ID";
-    std::cout << std::left << std::setw(10) << "Side";
-    std::cout << std::left << std::setw(15) << "Price";
-    std::cout << std::left << std::setw(12) << "Quantity" << '\n';
+    long long total_quantity;
 
-    for(int i = 0; i < orders.size(); i++){
-        std::cout << std::left << std::setw(15) << orders[i].id;
-        std::cout << std::left << std::setw(10) << ((orders[i].side == Side::BUY) ? "BUY" : "SELL");
-        std::cout << std::left << std::setw(15) << orders[i].price;
-        std::cout << std::left << std::setw(12) << orders[i].quantity << '\n';
+    if(!buy_orders.empty()){
+        std::cout << "\nBuy Order Details\n";
+
+        for(const auto& [price, orders] : buy_orders){
+            total_quantity = 0;
+            std::cout << "Price: " << price << '\n';
+            std::cout << std::left << std::setw(15) << "Order ID";
+            std::cout << std::left << std::setw(10) << "Side";
+            std::cout << std::left << std::setw(12) << "Quantity" << '\n';
+            for (const Order& order : orders){
+                std::cout << std::left << std::setw(15) << order.id;
+                std::cout << std::left << std::setw(10) << "BUY";
+                std::cout << std::left << std::setw(12) << order.quantity << '\n';
+                total_quantity += order.quantity;
+            }
+            std::cout << "Total quantity: " << total_quantity << "\n\n";
+        }
+    }
+
+    if(!sell_orders.empty()){
+        std::cout << "\nSell Order Details\n";
+
+        for(const auto& [price, orders] : sell_orders){
+            total_quantity = 0;
+            std::cout << "Price: " << price << '\n';
+            std::cout << std::left << std::setw(15) << "Order ID";
+            std::cout << std::left << std::setw(10) << "Side";
+            std::cout << std::left << std::setw(12) << "Quantity" << '\n';
+            for (const Order& order : orders){
+                std::cout << std::left << std::setw(15) << order.id;
+                std::cout << std::left << std::setw(10) << "SELL";
+                std::cout << std::left << std::setw(12) << order.quantity << '\n';
+                total_quantity += order.quantity;
+            }
+            std::cout << "Total quantity: " << total_quantity << "\n\n";
+        }
+    }
+}
+
+void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders){
+    if(order.side == Side::BUY){
+        buy_orders[order.price].push_back(order);
+    }else{
+        sell_orders[order.price].push_back(order);
     }
 }
