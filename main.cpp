@@ -12,13 +12,24 @@ struct Order{
     int quantity;
 };
 
+struct Trade{
+    long long buy_order_id;
+    long long sell_order_id;
+    double price;
+    int quantity;
+};
+
 Order get_order();
+void match_order(Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders, std::vector<Trade>& trades);
 void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders);
+void execute_trade(Order& incoming, Order& resting, std::vector<Trade>& trades, int transf);
 void display_orders(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders);
+void display_trades(const std::vector<Trade>& trades);
 
 int main(){
     std::map<double, std::vector<Order>, std::greater<double>> buy_orders;
     std::map<double, std::vector<Order>> sell_orders;
+    std::vector<Trade> trades;
     int onum;
 
     while(true){
@@ -31,10 +42,11 @@ int main(){
 
     for(int i = 0; i<onum; i++){
         Order o = get_order();
-        add_order(o, buy_orders, sell_orders);
+        match_order(o, buy_orders, sell_orders, trades);
     }
 
     display_orders(buy_orders, sell_orders);
+    display_trades(trades);
 
     return 0;
 }
@@ -87,6 +99,69 @@ Order get_order(){
     return o;
 }
 
+void match_order(Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders, std::vector<Trade>& trades){
+    int transf;
+    if(order.side == Side::BUY){
+        if(sell_orders.empty()){
+            add_order(order, buy_orders, sell_orders);
+        }else{
+            while(order.quantity && !sell_orders.empty()){
+                auto it = sell_orders.begin();
+                if(order.price >= it->first){
+                    transf = std::min(order.quantity, it->second[0].quantity);
+                    execute_trade(order, it->second[0], trades, transf);
+                    if(it->second[0].quantity == 0) it->second.erase(it->second.begin());
+                    if(it->second.empty()) sell_orders.erase(it);
+                }else{
+                    break;
+                }
+            }
+            if(order.quantity) add_order(order, buy_orders, sell_orders);
+        }
+    }else{
+        if(buy_orders.empty()){
+            add_order(order, buy_orders, sell_orders);
+        }else{
+            while(order.quantity && !buy_orders.empty()){
+                auto it = buy_orders.begin();
+                if(order.price <= it->first){
+                    transf = std::min(order.quantity, it->second[0].quantity);
+                    execute_trade(order, it->second[0], trades, transf);
+                    if(it->second[0].quantity == 0) it->second.erase(it->second.begin());
+                    if(it->second.empty()) buy_orders.erase(it);
+                }else{
+                    break;
+                }
+            }
+            if(order.quantity) add_order(order, buy_orders, sell_orders);
+        }
+    }
+}
+
+void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders){
+    if(order.side == Side::BUY){
+        buy_orders[order.price].push_back(order);
+    }else{
+        sell_orders[order.price].push_back(order);
+    }
+}
+
+void execute_trade(Order& incoming, Order& resting, std::vector<Trade>& trades, int transf){
+    struct Trade trade;
+    incoming.quantity -= transf;
+    resting.quantity -= transf;
+    if(incoming.side == Side::BUY){
+        trade.buy_order_id = incoming.id;
+        trade.sell_order_id = resting.id;
+    }else{
+        trade.buy_order_id = resting.id;
+        trade.sell_order_id = incoming.id;
+    }
+    trade.price = resting.price;
+    trade.quantity = transf;
+    trades.push_back(trade);
+}
+
 void display_orders(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders){
     if(buy_orders.empty() && sell_orders.empty()){
         std::cout << "\nNo orders to display.\n";
@@ -134,10 +209,21 @@ void display_orders(const std::map<double, std::vector<Order>, std::greater<doub
     }
 }
 
-void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders){
-    if(order.side == Side::BUY){
-        buy_orders[order.price].push_back(order);
+void display_trades(const std::vector<Trade>& trades){
+    if(!trades.empty()){
+        std::cout << "\nExecuted Trades\n";
+        std::cout << std::left << std::setw(15) << "Buy Order ID";
+        std::cout << std::left << std::setw(15) << "Sell Order ID";
+        std::cout << std::left << std::setw(10) << "Price";
+        std::cout << std::left << std::setw(12) << "Quantity" << '\n';
+
+        for(const auto& trade : trades){
+            std::cout << std::left << std::setw(15) << trade.buy_order_id;
+            std::cout << std::left << std::setw(15) << trade.sell_order_id;
+            std::cout << std::left << std::setw(10) << trade.price;
+            std::cout << std::left << std::setw(12) << trade.quantity << '\n';
+        }
     }else{
-        sell_orders[order.price].push_back(order);
+        std::cout << "\nNo trades executed.\n";
     }
 }
