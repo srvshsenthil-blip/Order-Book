@@ -19,7 +19,7 @@ struct Trade{
     int quantity;
 };
 
-Order get_order();
+Order get_order(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders, const std::vector<Trade>& trades);
 void match_order(Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders, std::vector<Trade>& trades);
 void add_order(const Order& order, std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders);
 void execute_trade(Order& incoming, Order& resting, std::vector<Trade>& trades, int transf);
@@ -28,6 +28,8 @@ void display_trades(const std::vector<Trade>& trades);
 void modify_order(std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders, std::vector<Trade>& trades);
 void display_stats(const std::vector<Trade>& trades);
 void display_depth(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders);
+bool order_exists(long long id, const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders, const std::vector<Trade>& trades);
+bool cancel_order(std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders);
 
 int main(){
     std::map<double, std::vector<Order>, std::greater<double>> buy_orders;
@@ -47,33 +49,37 @@ int main(){
         while(true){
             if(std::cin >> state && 
                 (state == 'P' || state == 'M' || state == 'E' || state == 'O' 
-                || state == 'T' || state == 'S' || state == 'B')) break;
+                || state == 'T' || state == 'S' || state == 'B' || state =='C')) break;
             std::cout << "Invalid." << '\n';
             std::cin.clear();
             std::cin.ignore(1000, '\n');
         }
 
         if(state == 'P'){
-            Order o = get_order();
+            Order o = get_order(buy_orders, sell_orders, trades);
             match_order(o, buy_orders, sell_orders, trades);
         }else if(state == 'M') modify_order(buy_orders, sell_orders, trades);
         else if(state == 'O') display_orders(buy_orders, sell_orders);
         else if(state == 'T') display_trades(trades);
         else if(state == 'S') display_stats(trades);
         else if(state == 'B') display_depth(buy_orders, sell_orders);
+        else if(state == 'C'){
+            if (cancel_order(buy_orders, sell_orders)) std::cout << "Order cancelled successfully.\n";
+            else std::cout << "Order not found or already executed.\n";
+        }
         else break;
     }
 
     return 0;
 }
 
-Order get_order(){
+Order get_order(const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders, const std::vector<Trade>& trades){
     Order o;
     std::string sideInput;
 
     while(true){
         std::cout << "Enter Order ID: ";
-        if(std::cin >> o.id && o.id > 0) break;
+        if(std::cin >> o.id && o.id > 0 && !order_exists(o.id, buy_orders, sell_orders, trades)) break;
         std::cout << "Invalid Order ID. Enter a positive integer." << '\n';
         std::cin.clear();
         std::cin.ignore(1000, '\n');
@@ -384,4 +390,56 @@ void display_depth(const std::map<double, std::vector<Order>, std::greater<doubl
         }
         std::cout << '\n';
     }
+}
+
+bool order_exists(long long id, const std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, const std::map<double, std::vector<Order>>& sell_orders, const std::vector<Trade>& trades){
+    for(const auto& [price, orders] : buy_orders){
+        for(const Order& o : orders){
+            if(o.id == id) return true;
+        }
+    }
+
+    for(const auto& [price, orders] : sell_orders){
+        for(const Order& o : orders){
+            if(o.id == id) return true;
+        }
+    }
+
+    for (const auto& trade : trades) {
+        if (trade.buy_order_id == id || trade.sell_order_id == id)
+            return true;
+    }
+
+    return false;
+}
+
+bool cancel_order(std::map<double, std::vector<Order>, std::greater<double>>& buy_orders, std::map<double, std::vector<Order>>& sell_orders){
+    long long id;
+
+    std::cout << "Enter order ID to cancel: ";
+    std::cin >> id;
+
+    for (auto it = buy_orders.begin(); it != buy_orders.end(); ++it){
+        auto& orders = it->second;
+        for (auto order_it = orders.begin(); order_it != orders.end(); ++order_it){
+            if (order_it->id == id){
+                orders.erase(order_it);
+                if (orders.empty()) buy_orders.erase(it);
+                return true;
+            }
+        }
+    }
+
+    for (auto it = sell_orders.begin(); it != sell_orders.end(); ++it){
+        auto& orders = it->second;
+        for (auto order_it = orders.begin(); order_it != orders.end(); ++order_it){
+            if (order_it->id == id){
+                orders.erase(order_it);
+                if (orders.empty()) sell_orders.erase(it);
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
